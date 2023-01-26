@@ -1,0 +1,115 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>GamePortal</title>
+    <link rel="stylesheet" href="istyle2.css">
+</head>
+<body>
+    <nav>
+        <ul>
+            <li>Welcome to Game Portal</li>
+        </ul>
+    </nav>
+    <div class="gameInfo">
+        <div class="cards">
+            <div class="image">
+                <img src="logos/Snapshot_TictacToe1.png">
+                <button type="tictactoe" class="btn" onclick="openPopup()">TicTacToe</button>
+                <div class="popup" id="popup">
+                    <h2>Select from options</h2>
+                    <a href="tictactoe.html">PlayTicTacToe Local</a>
+                    <a href="login.php">PlayTicTacToe Remote</a>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="cards">
+            <div class="image">
+                <img src="./logos/arid2_rt.jpg">
+                <button type="3D Sample Game" class="btn" onclick="open3DPopup()">3D Sample Game</button>
+                <div class="popup3D" id="popup3D">
+                    <h2>Select from options</h2>
+                    <a href="3DSample.html">Play3DSample Local</a>
+                    <a href="SampleTerrain3D.html">Play3DSample Remote</a>
+                    <a href="ModelControl.html">PlayTerrain3DControl Remote</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="cards">
+            <div class="image">
+                <img src="./logos/bgCity.jpg">
+                <button type="Save the Hero Game" class="btn" onclick="openSaveHeroPopup()">Save Hero Game</button>
+                <div class="popup3D" id="popup3D">
+                    <h2>Select from options</h2>
+                    <a href="SaveHero.html">SaveHeroGame Local</a>
+                    <a href="login.php">Play3DSample Remote</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="cards">
+            <div class="image">
+                    <img src="./logos/bgCity.jpg">
+                    <button type="Test Room" class="btn" onclick="openTestRoom()">Test Room</button>
+                    <div class="popup3D" id="popup3D">
+                        <h2>Select from options</h2>
+                        <a href="NatureMountain.html">Nature Mountain</a>
+
+                        <a href="TestRoom.html">TestRoom</a>
+                    </div>
+                </div>
+            </div>
+
+        <div class="cards">
+            <div class="image">
+                <img src="./logos/monkey.png">
+                <button type="Test Room Bldg" class="btn" onclick="openSaveHeroPopup()">Test Room Bldg</button>
+                <div class="popup3D" id="popup3D">
+                    <h2>Select from options</h2>
+                    <a href="SaveHero.html">SaveHeroGame Local</a>
+                    <a href="login.php">Play3DSample Remote</a>
+                </div>
+            </div>
+        </div>
+        <div class="cards">
+            <div class="image">
+                <img src="./logos/Snapshot_TictacToe1.png">
+                <button type="House 3D Model" class="btn" onclick="openHouse()">House 3D Model</button>
+                <div class="popupHouse" id="popupHouse">
+                    <h2>Select from options</h2>
+                    <a href="HouseModel.html">House Model</a>
+
+                    <a href="TestRoom.html">TestRoom</a>
+                </div>
+            </div>
+        </div>
+    </div>
+        <script>
+            let popup = document.getElementById("popup");
+            function openPopup() {
+                popup.classList.add("open-popup");
+            }
+
+            let popup3D = document.getElementById("popup3D");
+            function open3DPopup() {
+                popup3D.classList.add("open-popup3D");
+            }
+
+            let popupHouse = document.getElementById("popupHouse");
+            function openHouse() {
+                popupHouse.classList.add("open-popupHouse");
+            }
+        </script>
+
+
+
+        <!-- hitwebcounter Code START -->
+        <a href="https://www.hitwebcounter.com" target="_blank">
+            <img src="https://hitwebcounter.com/counter/counter.php?page=8101785&style=0001&nbdigits=5&type=page&initCount=0" title="Free Counter" Alt="web counter" border="0" />
+        </a>
+</body>
+</html>

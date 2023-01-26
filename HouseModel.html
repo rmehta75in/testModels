@@ -1,0 +1,1289 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>ModelControl.js example</title>
+    <style>
+        body {
+            margin: 0px;
+        }
+    </style>
+</head>
+<body>
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./sample/three.module.js",
+                "three/addons/": "./jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+
+        import * as THREE from 'three';
+
+
+        import { OrbitControls } from './sample/OrbitControls.js';
+        import { FBXLoader } from './sample/FBXLoader.js';
+        
+        let x, y, z, gc, camera, scene, renderer, stats, str = 'models/fbx/Amy/idle.fbx', appendCamMode=0, camMode=0, dir,zoomMode=0;
+        //Declare variables for Ammo
+        let physicsWorld;
+        let rigidBody_list = new Array();
+        let tmpTransformation = undefined;
+        const clock = new THREE.Clock();
+
+        let mixer;
+        let modelReady = false;
+        let animationActions=[];
+        let activeAction;
+        let lastAction, deltaCam=0;
+
+        init();
+        animate();
+        function init() {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xa8def0);
+
+            // RENDERER
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // CAMERA
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.4, 2);
+            camera.lookAt(0, 0, 0);
+            let cameraPrev = 0, cameraRPrev = 0;
+            console.log('camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+
+
+            // CAMERA
+            gc = camera;
+            x = camera.position.x; y = camera.position.y; z = camera.position.z;
+
+            //aspectRation = WIDTH / HEIGHT;
+            let fieldOfView = 55;
+            let nearPlane = 45;
+            let farPlane = 30000;
+
+            //camera
+   /*         camera = new THREE.PerspectiveCamera(
+                fieldOfView, window.innerWidth / window.innerHeight, nearPlane,
+                farPlane
+            );
+            camera.position.set(-900, -200, -900);
+            */
+            console.log('Before Orbitcontrol, camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+
+            // CONTROLS
+
+            const orbitControls = new OrbitControls(camera, renderer.domElement);
+            orbitControls.enableDamping = true
+            orbitControls.minDistance = 5
+            orbitControls.maxDistance = 15
+            orbitControls.enablePan = false
+            orbitControls.maxPolarAngle = Math.PI / 2 - 0.05
+            orbitControls.target.set(0, 1, 0);
+            orbitControls.update();
+
+            console.log('Before ambient light, camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+/*
+
+            //SkyBox
+
+            let materialArray = [];
+            let texture_ft = new THREE.TextureLoader().load('arid2_ft.jpg');
+            let texture_bk = new THREE.TextureLoader().load('arid2_bk.jpg');
+            let texture_up = new THREE.TextureLoader().load('arid2_up.jpg');
+            let texture_dn = new THREE.TextureLoader().load('arid2_dn.jpg');
+            let texture_rt = new THREE.TextureLoader().load('arid2_rt.jpg');
+            let texture_lf = new THREE.TextureLoader().load('arid2_lf.jpg');
+
+            materialArray.push(new THREE.MeshBasicMaterial({ map: texture_ft }));
+
+            materialArray.push(new THREE.MeshBasicMaterial({ map: texture_bk }));
+            materialArray.push(new THREE.MeshBasicMaterial({ map: texture_up }));
+            materialArray.push(new THREE.MeshBasicMaterial({ map: texture_dn }));
+            materialArray.push(new THREE.MeshBasicMaterial({ map: texture_rt }));
+            materialArray.push(new THREE.MeshBasicMaterial({ map: texture_lf }));
+
+            for (let i = 0; i < 6; ++i)
+                materialArray[i].side = THREE.BackSide;
+
+            let skyBoxGeo = new THREE.BoxGeometry(10000, 10000, 10000);
+            let skyBox = new THREE.Mesh(skyBoxGeo, materialArray);
+          //  scene.add(skyBox);
+            
+            var skyBox = new THREE.CubeTextureLoader().load([
+                'arid2_ft.jpg',
+                'arid2_bk.jpg',
+                'arid2_up.jpg',
+                'arid2_dn.jpg',
+                'arid2_rt.jpg',
+                'arid2_lf.jpg',
+            ]);
+*/
+  
+          //  scene.background = skyBox;
+            // LIGHTS
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7))
+          //  scene.add(new THREE.AmbientLight(0x404040, 1))
+          //  scene.add(new THREE.HemisphereLight(0xffeeb1, 0x080820, 4));
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 3)
+            dirLight.position.set( -10, 100, -10);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.top = 50;
+            dirLight.shadow.camera.bottom = - 50;
+            dirLight.shadow.camera.left = - 50;
+            dirLight.shadow.camera.right = 50;
+            dirLight.shadow.camera.near = 0.1;
+            dirLight.shadow.camera.far = 200;
+            dirLight.shadow.mapSize.width = 4096;
+            dirLight.shadow.mapSize.height = 4096;
+            scene.add(dirLight);
+            
+            // FLOOR
+            // TEXTURES
+            /*const textureLoader = new THREE.TextureLoader();
+            const placeholder = textureLoader.load("./textures/placeholder/placeholder.png");
+            const sandBaseColor = textureLoader.load("./textures/sand/Sand 002_COLOR.jpg");
+            const sandNormalMap = textureLoader.load("./textures/sand/Sand 002_NRM.jpg");
+            const sandHeightMap = textureLoader.load("./textures/sand/Sand 002_DISP.jpg");
+            const sandAmbientOcclusion = textureLoader.load("./textures/sand/Sand 002_OCC.jpg");
+
+            const WIDTH = 80
+            const LENGTH = 80
+
+            const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 512, 512);
+            const material = new THREE.MeshStandardMaterial(
+                {
+                    map: sandBaseColor, normalMap: sandNormalMap,
+                    displacementMap: sandHeightMap, displacementScale: 0.1,
+                    aoMap: sandAmbientOcclusion
+                })
+            wrapAndRepeatTexture(material.map)
+            wrapAndRepeatTexture(material.normalMap)
+            wrapAndRepeatTexture(material.displacementMap)
+            wrapAndRepeatTexture(material.aoMap)
+            // const material = new THREE.MeshPhongMaterial({ map: placeholder})
+
+            const floor = new THREE.Mesh(geometry, material)
+            floor.receiveShadow = true
+            floor.rotation.x = - Math.PI / 2
+            scene.add(floor)
+            */
+            console.log('Before citymodel, camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+
+            //city model
+            const BaseFloor = new Promise((res, rej) => {
+                const loader = new FBXLoader();
+
+                loader.load('models/fbx/house/Design1_2023.fbx', function (object) {
+                    scene.add(object);
+                    let s = 0.0009;
+                    object.scale.set(s, s, s);
+                    res(object);
+                    console.log(object);
+                });
+            });
+            console.log('after citymodel, camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+
+            // model
+            const model = new Promise((res, rej) => {
+                const loader = new FBXLoader();
+                //  loader.load('models/fbx/running.fbx', function (object) {
+
+                loader.load('models/fbx/Ch46_nonPBR.fbx', function (object) {
+
+                    mixer = new THREE.AnimationMixer(object);
+                    const animationAction = mixer.clipAction(object.animations[0]);
+                    animationActions.push(animationAction);
+                    //animationsFolder.add(animations, 'default');
+                    activeAction = animationActions[0];
+                    activeAction.play();
+                    /*      const action = mixer.clipAction(object.animations[0]);
+                          action.play();
+          */
+                    /*  object.traverse(function (child) {
+      
+                          if (child.isMesh) {
+      
+                              child.castShadow = true;
+                              child.receiveShadow = true;
+      
+                          }
+      
+                      });*/
+                    
+                   // camera.position.set(camera.position.set(0.8, 1.4, 5));
+                   // camera.lookAt(new THREE.Vector3(0, 0, 0));
+                   // object.add(camera);
+                   // camera.lookAt(object);
+                    scene.add(object);
+                    let s = 0.002;
+                    object.scale.set(s, s, s);
+                    console.log('after model spanning camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+                    object.position.set(0, 0, -1);
+                    const loader = new FBXLoader();
+                    loader.load('models/fbx/Amy/jump.fbx', function (object) {
+
+                        const animationAction = mixer.clipAction(object.animations[0]);
+                        animationActions.push(animationAction);
+                        //  animationsFolder.add(animations, 'default');
+                        // modelReady = true;
+
+                        const loader = new FBXLoader();
+                        loader.load('models/fbx/Amy/running.fbx', function (object) {
+
+                            const animationAction = mixer.clipAction(object.animations[0]);
+                            animationActions.push(animationAction);
+                            const loader = new FBXLoader();
+                            loader.load('models/fbx/Amy/running.fbx', function (object) {
+
+                                const animationAction = mixer.clipAction(object.animations[0]);
+                                animationActions.push(animationAction);
+                                const loader = new FBXLoader();
+                                loader.load('models/fbx/Amy/running.fbx', function (object) {
+
+                                    const animationAction = mixer.clipAction(object.animations[0]);
+                                    animationActions.push(animationAction);
+                                    const loader = new FBXLoader();
+                                    loader.load('models/fbx/Amy/running.fbx', function (object) {
+
+                                        const animationAction = mixer.clipAction(object.animations[0]);
+                                        animationActions.push(animationAction);
+                                        const loader = new FBXLoader();
+                                        loader.load('models/fbx/Amy/idle.fbx', function (object) {
+
+                                            const animationAction = mixer.clipAction(object.animations[0]);
+                                            animationActions.push(animationAction);
+                                            modelReady = true;
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                    res(object);
+                });
+                
+            });
+            
+            model.then(object => {
+             //   object.add(camera);
+            });
+            let face='straight', smodel=0.006, sfloor=0.005;
+            document.onkeydown = function (e) {
+                console.log("Key Code is", e.keyCode);
+                if (e.keyCode == 79) { //zoom out 'o'
+                    model.then(object => {
+                        smodel-= 0.001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor-= 0.001;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                }
+                else if (e.keyCode == 73) {//zoom in 'i'
+                    model.then(object => {
+                        smodel += 0.001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor += 0.001;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                }
+                else if (e.keyCode == 13) {
+                    if (activeAction != animationActions[6]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                    }
+                } else if (e.keyCode == 32) {//jump "space bar"
+                    if (activeAction != animationActions[1]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[1];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                    }
+                }
+                else if (e.keyCode == 65) {//walk to left "A key"
+                    model.then(object => {
+                        if (!camMode) smodel = 0.003;
+                        else smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            /*if (face == 'left') {
+                                object.position.x -= Math.min(1, 1); 
+                            }
+                            else {
+                                face = 'left';
+                          
+                                object.rotation.y= deltaCam -Math.PI / 2;
+                            },,
+                            camera.position.set(camera.position.x - Math.min(1, 1), camera.position.y, camera.position.z);
+                           // camera.lookAt(object.position)
+                            renderer.render(scene, camera);
+                            */
+                           
+                            var vector = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+                            console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                           // object.rotation.y = camera.rotation.y - Math.PI / 2;
+                            // console.log('value of vector before applying Angleshift:', vector.angleTo(v1));
+                             var vectorObj = new THREE.Vector3(object.position.x, object.position.y, object.position.z);
+                            var v1 = new THREE.Vector3(object.position.x - camera.position.x, object.position.y - camera.position.y, object.position.z - camera.position.z);
+                            if (appendCamMode) {
+                                camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+                                if (camera.rotation.y == 2 * Math.PI) {
+                                    object.rotation.y += Math.PI / 2;
+                                    object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                    camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                }
+                                else {
+                                    object.rotation.y = - Math.PI / 2;
+                                    object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                    camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                }
+                                orbitControls.target.set(object.position.x-0.2, object.position.y, object.position.z+0.2);
+                                orbitControls.update();
+                            }
+                            else {
+                                camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                                //object.lookAt(camera.position.x, 0, camera.position.z);
+                                camera.rotation.y = orbitControls.object.rotation.y;
+                                camera.lookAt(object.position);
+                                var forward = new THREE.Vector3(camera.position.x - object.position.x, 0, camera.position.z - object.position.z);
+                                var left = forward.cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+                                object.lookAt(object.position.x + left.x, object.position.y, object.position.z+left.z);
+                                object.position.x += 0.2*left.x;  object.position.z += 0.2*left.z;
+                                if (!camMode) {
+                                    var camforward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                                    var camleft = (new THREE.Vector3(0, 1, 0)).cross(camforward).normalize();
+
+                                    camera.lookAt(object.position);
+                                    camera.position.x += 0.2 * camleft.x; camera.position.z += 0.2 * camleft.z;
+                                }
+                                else {
+                                    camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+                                }
+                            /*    console.log('value of Camera x:', camera.position.x, 'value of gc x:', object.position.x);
+                                console.log('value of Camera y:', camera.position.y, 'value of gc y:', object.position.y);
+                                console.log('value of Camera z:', camera.position.z, 'value of gc z:', object.position.z);
+                             */
+                            }
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z );
+
+                            console.log('value of Camera x:', camera.position.x, 'value of gc x:', object.position.x);
+                            console.log('value of Camera y:', camera.position.y, 'value of gc y:', object.position.y);
+                            console.log('value of Camera z:', camera.position.z, 'value of gc z:', object.position.z);
+                           // var vectorRes = vector.cross(vectorObj);
+                          // console.log(camera.position.x, camera.position.y, camera.position.z, 'obj is:', object.position.x, object.position.y, object.position.z,'vectorRes is', vectorRes);
+                          //  object.position.set(object.position.x + vectorRes.x, object.position.y + vectorRes.y, object.position.z + vectorRes.z, );
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 68) {//right turn "D Key"
+                    model.then(object => {
+                        if (!camMode) smodel = 0.003;
+                        else smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[5]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[5];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        
+                        model.then(object => {
+                           /* console.log('before going right, face is:', face, object.position.x);
+                            if (face == 'right') object.position.x += Math.min(1, 1);
+                            else {
+                                face = 'right';
+                                object.rotation.y = deltaCam+ Math.PI / 2;
+                            }
+                            
+                            camera.position.set(camera.position.x + Math.min(1, 1), camera.position.y, camera.position.z);
+                            renderer.render(scene, camera);
+*/
+                            if (appendCamMode) {
+                                camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+                                if (camera.rotation.y == 2 * Math.PI) {
+                                    object.rotation.y -= Math.PI / 2;
+                                    object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                    camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                }
+                                else {
+                                    object.rotation.y = Math.PI / 2;
+                                    object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                    camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                    camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                }
+                                orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                                orbitControls.update();
+                            }
+                            else {
+                                camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                                //object.lookAt(camera.position.x, 0, camera.position.z);
+                                camera.rotation.y = orbitControls.object.rotation.y;
+                                camera.lookAt(object.position);
+                                var forward = new THREE.Vector3(camera.position.x - object.position.x, 0, camera.position.z - object.position.z);
+                                var right = (new THREE.Vector3(0, 1, 0)).cross(forward).normalize();
+
+                                object.lookAt(object.position.x + right.x, object.position.y, object.position.z + right.z);
+                                object.position.x += 0.2 * right.x; object.position.z += 0.2 * right.z;
+
+                                if (!camMode) {
+                                    var camforward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                                var camright = camforward.cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+                                camera.lookAt(object.position);
+                                camera.position.x += 0.2 * camright.x; camera.position.z += 0.2 * camright.z;
+                                }
+                                else {
+                                camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+                                }
+                            }
+
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                          //  camera.lookAt(object.position);
+                            renderer.render(scene, camera);
+                        });
+                       // floor.rotation.y = - Math.PI / 2
+                    //    floor.position.z -= Math.min(1, 2);
+                    }
+                }
+              
+                else if ((e.keyCode == 87)|| (e.keyCode == 38)) {//walk  upwards "W key"
+                    model.then(object => {
+                        if (!camMode) smodel = 0.003;
+                        else smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        model.then(object => {
+                            /*console.log('before going upward, face is:', face, object.position.z);
+                            if (face == 'up') {
+                                object.position.z -= Math.min(1, 1); //object.rotation.y = - Math.PI / 2;
+                            }
+                            else {
+                                face = 'up'; object.rotation.y = deltaCam - Math.PI;
+                            }
+                            camera.position.set(camera.position.x, camera.position.y, camera.position.z - Math.min(1, 1));
+                            //camera.position.z += Math.min(0.1, 0.1);
+                            // camera.lookAt(object.position)
+                            renderer.render(scene, camera);
+                            */
+                            if (appendCamMode) {
+                                camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                                //object.lookAt(camera.position.x, 0, camera.position.z);
+                                camera.rotation.y = orbitControls.object.rotation.y;
+                                camera.lookAt(object.position);
+
+                                var forward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                                // var up = (new THREE.Vector3(0, 1, 0)).cross(forward).normalize();
+
+                                object.lookAt(object.position.x + 0.1 * forward.x, object.position.y, object.position.z + 0.1 * forward.z);
+                                object.position.x += 0.1 * forward.x;  object.position.z += 0.1 * forward.z;
+
+                                var camforward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                                //  var camright = camforward.cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+                                camera.position.x += 0.1 * camforward.x; camera.position.z += 0.1 * camforward.z;
+                                camera.lookAt(object.position);
+                            }
+                            else {
+                                /*camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                                //object.lookAt(camera.position.x, 0, camera.position.z);
+                                camera.rotation.y = orbitControls.object.rotation.y;
+                                camera.lookAt(object.position);
+
+                                var forward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                               // var up = (new THREE.Vector3(0, 1, 0)).cross(forward).normalize();
+
+                                object.lookAt(object.position.x + 0.1*forward.x, 0, object.position.z + 0.1*forward.z);
+                                object.position.x += 0.1*forward.x; object.position.y = 0; object.position.z += 0.1*forward.z;
+
+                                var camforward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                              //  var camright = camforward.cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+                                camera.position.x += 0.1*camforward.x; camera.position.z += 0.1*camforward.z;
+                                camera.lookAt(object.position);
+                                */
+                                camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                                //object.lookAt(camera.position.x, 0, camera.position.z);
+                                camera.rotation.y = orbitControls.object.rotation.y;
+                                camera.lookAt(object.position);
+                                if (!camMode) {
+                                var forward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                                // var up = (new THREE.Vector3(0, 1, 0)).cross(forward).normalize();
+
+                                object.lookAt(object.position.x + 0.1 * forward.x, object.position.y, object.position.z + 0.1 * forward.z);
+                                object.position.x += 0.1 * forward.x; object.position.z += 0.1 * forward.z;
+
+                               
+                                    var camforward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                                //  var camright = camforward.cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+                                camera.position.x += 0.1 * camforward.x; camera.position.z += 0.1 * camforward.z;
+                                camera.lookAt(object.position);
+                                }
+                                else {
+                                    object.position.x += 0.2 * dir.x; object.position.z += 0.2 * dir.z;
+                                    camera.position.x += 0.2 * dir.x; camera.position.z += 0.2 * dir.z;
+                                }
+
+                            }
+
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                         //   camera.lookAt(object.position);
+                            renderer.render(scene, camera);
+                        });
+                    }
+                }
+                else if ((e.keyCode == 83)|| (e.keyCode == 40)) {//walk  downwards "S key"
+                    model.then(object => {
+                        if (!camMode) smodel = 0.003;
+                        else smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going downward, face is:', face);
+                        model.then(object => {
+                            /*if (face == 'straight') {
+                                object.position.z += Math.min(1, 1); object.rotation.y = deltaCam+ 2 * Math.PI;
+                            }
+                            else {
+                                face = 'straight'; object.rotation.y = deltaCam+ 2 * Math.PI;
+                            }
+                            camera.position.set(camera.position.x, camera.position.y, camera.position.z + Math.min(1, 1));
+                            // camera.position.z += Math.min(0.1, 0.1);
+                            // camera.lookAt(object.position)
+                            renderer.render(scene, camera);
+                            */
+                            if (appendCamMode) {
+                                camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+
+                                object.rotation.y = 0;
+                                object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+
+                                orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                                orbitControls.update();
+                            }
+                            else {
+
+
+                                camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                                //object.lookAt(camera.position.x, 0, camera.position.z);
+                                camera.rotation.y = orbitControls.object.rotation.y;
+                                camera.lookAt(object.position);
+                                if (!camMode) {
+                                var forward = new THREE.Vector3(camera.position.x - object.position.x, 0, camera.position.z - object.position.z);
+                                // var up = (new THREE.Vector3(0, 1, 0)).cross(forward).normalize();
+
+                                object.lookAt(object.position.x + 0.1 * forward.x, object.position.y, object.position.z + 0.1 * forward.z);
+                                object.position.x += 0.1 * forward.x; object.position.z += 0.1 * forward.z;
+
+                                
+                                    var camforward = new THREE.Vector3(camera.position.x - object.position.x, 0, camera.position.z - object.position.z);
+                                //  var camright = camforward.cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+                                camera.position.x += 0.1 * camforward.x; camera.position.z += 0.1 * camforward.z;
+                                camera.lookAt(object.position);
+                                }
+                                else {
+                                   // object.position.x -= 0.2 * dir.x;  object.position.z -= 0.2 * dir.z;
+                                   // camera.position.x -= 0.2 * dir.x; camera.position.z -= 0.2 * dir.z;
+                                }
+                            }
+
+                            
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                            console.log('camMode', camMode);
+                            console.log('object at:', object.position.x, object.position.y, object.position.z);
+                            console.log('camera at:', camera.position.x, camera.position.y, camera.position.z);
+                         //   camera.lookAt(object.position);
+                            renderer.render(scene, camera);
+                        });
+                    }
+                }
+                else if (e.keyCode == 81) {//move up the ramp to left "Q key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 10
+                    model.then(object => {
+                        if (!camMode) smodel = 0.003;
+                        else smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            var vector = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+                            console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                            // object.rotation.y = camera.rotation.y - Math.PI / 2;
+                            // console.log('value of vector before applying Angleshift:', vector.angleTo(v1));
+                            var vectorObj = new THREE.Vector3(object.position.x, object.position.y, object.position.z);
+                            var v1 = new THREE.Vector3(object.position.x - camera.position.x, object.position.y - camera.position.y, object.position.z - camera.position.z);
+
+                            camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                            //object.lookAt(camera.position.x, 0, camera.position.z);
+                            camera.rotation.y = orbitControls.object.rotation.y;
+                            
+
+                            object.position.y += 0.2;
+                            if (!camMode) camera.position.y = object.position.y + 1.4;
+                            else {
+                                camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+                            }
+                            camera.lookAt(object.position.x, object.position.y+1, object.position.z );
+                           // camera.lookAt(camera.position.x+0.1, camera.position.y, camera.position.z+0.1);
+
+                          //  camera.rotation.y = object.rotation.y;
+                           // object.lookAt(camera.position.x, 0, camera.position.z);
+
+                          /*  console.log('value of Camera x:', camera.position.x, 'value of gc x:', object.position.x);
+                            console.log('value of Camera y:', camera.position.y, 'value of gc y:', object.position.y);
+                            console.log('value of Camera z:', camera.position.z, 'value of gc z:', object.position.z);
+                            // if (camera.rotation.y <= 0) object.rotation.y += - Math.PI / 2;
+                            //else if ((object.rotation.y > 0 && object.rotation.y < 2 * Math.PI)) object.rotation.y += - Math.PI / 2;
+                            if (camera.rotation.y == 2 * Math.PI) {
+                                object.rotation.y += Math.PI / 2;
+                                object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                object.position.y += 1;
+                                object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                camera.position.y += 1;
+                                camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                            }
+                            else {
+                                object.rotation.y += - Math.PI / 2;
+                                object.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                object.position.y += 1;
+                                object.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                                camera.position.x += Math.round(Math.sin(object.rotation.y) * 1);
+                                camera.position.y += 1;
+                                camera.position.z += Math.round(Math.cos(object.rotation.y) * 1);
+                            }
+                            x = camera.position.x; y = camera.position.y; z = camera.position.z;
+                            orbitControls.target.set(object.position.x+0.5, object.position.y, object.position.z+0.5);
+                            orbitControls.update();
+
+
+                            console.log('value of Camera x:', camera.position.x, 'value of gc x:', x);
+                            console.log('value of Camera y:', camera.position.y, 'value of gc y:', y);
+                            console.log('value of Camera z:', camera.position.z, 'value of gc z:', z);
+                           */ // var vectorRes = vector.cross(vectorObj);
+                            // console.log(camera.position.x, camera.position.y, camera.position.z, 'obj is:', object.position.x, object.position.y, object.position.z,'vectorRes is', vectorRes);
+                            //  object.position.set(object.position.x + vectorRes.x, object.position.y + vectorRes.y, object.position.z + vectorRes.z, );
+
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 67) {//move down the ramp to left "C key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 10
+                    model.then(object => {
+                        if (!camMode) smodel = 0.003;
+                        else smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            var vector = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+                            console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                            // object.rotation.y = camera.rotation.y - Math.PI / 2;
+                            // console.log('value of vector before applying Angleshift:', vector.angleTo(v1));
+                            var vectorObj = new THREE.Vector3(object.position.x, object.position.y, object.position.z);
+                            var v1 = new THREE.Vector3(object.position.x - camera.position.x, object.position.y - camera.position.y, object.position.z - camera.position.z);
+
+                            camera.position.x = orbitControls.object.position.x; camera.position.y = orbitControls.object.position.y; camera.position.z = orbitControls.object.position.z;
+                            //object.lookAt(camera.position.x, 0, camera.position.z);
+                            camera.rotation.y = orbitControls.object.rotation.y;
+
+
+                            object.position.y -= 0.2;
+                            if (!camMode) camera.position.y = object.position.y + 1.4;
+                            else {
+                                camera.position.x = object.position.x; camera.position.y = object.position.y; camera.position.z = object.position.z;
+                            }
+                            camera.lookAt(object.position.x, object.position.y + 1, object.position.z);
+
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 75) {//Zoom in to Model "K key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 10
+                    model.then(object => {
+                        smodel = 0.003;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                           // camMode = 1;
+                            console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                            if (!zoomMode) var forward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+                            else forward = dir;
+                            zoomMode = 1;
+                            camera.position.x = object.position.x; //camera.position.y = object.position.y;
+                            camera.position.z = object.position.z;
+                            camera.position.y = object.position.y;
+
+                            dir = forward;
+                            orbitControls.target.set(camera.position.x, camera.position.y, camera.position.z);
+                            camera.add(object);
+                            object.rotation.y = camera.rotation.y;
+                            camera.lookAt(camera.position.x + forward.x, camera.position.y, camera.position.z + forward.z);
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 76 && zoomMode) {//Zoom out to Model "L key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 10
+                    model.then(object => {
+                        smodel = 0.003;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            //camMode = 1;
+                            console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                            let forward;
+                            forward = dir;
+                            zoomMode = 0;
+                            object.removeFromParent();
+                            scene.add(object);
+
+                            /*smodel = 0.003;
+                            object.scale.set(smodel, smodel, smodel);
+                            object.position.x = camera.position.x; object.position.y = camera.position.y; object.position.z = camera.position.z;
+                            object.rotation.y = camera.rotation.y;
+                            */
+                            camera.position.x -= forward.x; //camera.position.y = object.position.y;
+                            camera.position.z -= forward.z;
+                            camera.position.y = object.position.y+1.4;
+
+                            orbitControls.target.set(object.position.x, object.position.y, object.position.z);
+
+                            dir = forward;
+                            console.log('object at:', object.position.x, object.position.y, object.position.z);
+                            console.log('camera at:', camera.position.x, camera.position.y, camera.position.z);
+                            camera.lookAt(object.position);
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 74) {//Join camera to Model "J key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 10
+                    model.then(object => {
+                        smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            camMode = 1;
+                           console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                            var forward = new THREE.Vector3(-camera.position.x + object.position.x, 0, -camera.position.z + object.position.z);
+
+                            camera.position.x += forward.x; camera.position.y = object.position.y;
+                            camera.position.z += forward.z;
+                            camera.rotation.y = object.rotation.y;
+                            dir = forward;
+                            
+                            camera.lookAt(forward.x, object.position.y, forward.z);
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 85 && camMode==1) {//UnJoin camera to Model "U key"
+                    //appendCamMode = 1;
+                    
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 6
+                    model.then(object => {
+                        smodel = 0.003;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            camMode = 0;
+                            console.log('value of vector before applying Angleshift:', camera.rotation.y, object.rotation.y);
+                            camera.position.y=object.position.y+ 1.4;
+                            camera.position.z -= dir.z;
+                            camera.position.x -= dir.x;
+                         
+
+
+                            camera.lookAt(object.position);
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 82) {//Reduce the focal length of camera to lookaround "R key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 5
+                    model.then(object => {
+                        smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            camera.fov += 10;
+                            camera.updateProjectionMatrix();
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 84) {//Reduce the focal length of camera to lookaround "R key"
+                    //appendCamMode = 1;
+                    orbitControls.minDistance = 1
+                    orbitControls.maxDistance = 5
+                    model.then(object => {
+                        smodel = 0.0001;
+                        object.scale.set(smodel, smodel, smodel);
+                    });
+                    BaseFloor.then(object => {
+                        sfloor = 0.003;
+                        object.scale.set(sfloor, sfloor, sfloor);
+                    });
+                    if (activeAction != animationActions[2]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[2];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        setTimeout(() => { console.log("Wait for 10ms"); }, 10);
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                        console.log('before going left, face is:', face);
+                        model.then(object => {
+                            camera.fov -= 10;
+                            camera.updateProjectionMatrix();
+                            renderer.render(scene, camera);
+
+                        });
+                    }
+                }
+                else if (e.keyCode == 377) {//Move Camera to left  "< key  37"
+             
+                        lastAction = activeAction;
+                        activeAction = animationActions[6];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                    model.then(object => {
+                     /*   console.log('x delta was:', object.position.x - camera.position.x, 'z delta was:', object.position.z - camera.position.z);
+                        console.log('obj.positionx  was:', object.position.x , 'z.position was:', object.position.z);
+                        console.log('camera.positionx  was:', camera.position.x, 'camera.position was:', camera.position.z);
+                        if (object.position.x - camera.position.x == 0 && (object.position.z - camera.position.z == -2)) {
+                            face = 'right'; camera.position.set(camera.position.x - 2, 1.4, camera.position.z - 2);
+                        }
+                        else if (object.position.x - camera.position.x == 0 && (object.position.z - camera.position.z == 2)) {
+                            face = 'left'; camera.position.set(camera.position.x + 2, 1.4, camera.position.z + 2);
+                        }
+                        else if (object.position.x - camera.position.x == -2 && (object.position.z - camera.position.z == 0)) {
+                            face = 'straight'; camera.position.set(camera.position.x - 2, 1.4, camera.position.z + 2);
+                        }
+                        else if (object.position.x - camera.position.x == 2 && (object.position.z - camera.position.z == 0)) {
+                            face = 'up'; camera.position.set(camera.position.x + 2, 1.4, camera.position.z - 2);
+                        }
+                        */
+                        var vector = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+                        console.log('value of vector before applying Angleshift:', vector);
+                        var axis = new THREE.Vector3(0, 1, 0);
+                        vector.applyAxisAngle(axis, -Math.PI / 2); //required to move camera to new position rotated by 90degrees
+                        vector.roundToZero();
+                        console.log('value of vector is:', vector);
+                        camera.position.set(vector.x, vector.y, vector.z);
+                        console.log('value of camera orientation is:', camera.rotation.y);
+                        camera.lookAt(object.position);
+                        if ((camera.position.z < object.position.z) && camera.rotation.y == 0) {
+                            camera.rotation.y=2 * Math.PI; cameraPrev = camera.rotation.y;
+
+                            console.log('condition met:', cameraPrev);
+                        }
+                        else cameraPrev = camera.rotation.y;
+                        console.log('value of vector is:', cameraPrev, camera.rotation.y );
+                        renderer.render(scene, camera);
+                    });
+                    
+                        
+                           // camera.position.set(camera.position.x, camera.position.y, camera.position.z + Math.min(1, 1));
+                           // camera.position.z += Math.min(0.1, 0.1);
+                            // camera.lookAt(object.position)
+                           // renderer.render(scene, camera);
+                        
+                }
+                else if (e.keyCode == 399) {//Move Camera to Right  "> key 39"
+
+                    lastAction = activeAction;
+                    activeAction = animationActions[6];
+                    lastAction.fadeOut(1);
+                    activeAction.reset();
+                    activeAction.fadeIn(1);
+                    activeAction.play();
+                    model.then(object => {
+                       /* var vector = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+                        console.log('value of vector before applying Angleshift:', vector);
+                        var axis = new THREE.Vector3(0, 1, 0);
+                        vector.applyAxisAngle(axis, Math.PI / 2);
+                        console.log('value of vector is:', vector);
+                        camera.position.set(vector.x, vector.y, vector.z);
+                        camera.lookAt(object.position);
+                        renderer.render(scene, camera);*/
+                        var vector = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+                        console.log('value of vector before applying Angleshift:', vector);
+                        var axis = new THREE.Vector3(0, 1, 0);
+                        vector.applyAxisAngle(axis, Math.PI / 2); //required to move camera to new position rotated by 90degrees
+                        vector.roundToZero();
+                        console.log('value of vector is:', vector);
+                        camera.position.set(vector.x, vector.y, vector.z);
+                        camera.lookAt(object.position);
+                        if ((camera.position.z < object.position.z) && camera.rotation.y == 0) {
+                            camera.rotation.y = 2 * Math.PI; cameraPrev = camera.rotation.y;
+
+                            console.log('condition met:', cameraRPrev);
+                        }
+                        else cameraPrev = camera.rotation.y;
+                        console.log('value of vector is:', cameraPrev, camera.rotation.y);
+                        renderer.render(scene, camera);
+                    });
+                    
+                    
+
+                }
+                else if (e.keyCode == 8) {//Pressed Backspace "T-Pose"
+                    if (activeAction != animationActions[0]) {
+                        lastAction = activeAction;
+                        activeAction = animationActions[0];
+                        lastAction.fadeOut(1);
+                        activeAction.reset();
+                        activeAction.fadeIn(1);
+                        activeAction.play();
+                    }
+                }
+            }
+
+            orbitControls.listenToKeyEvents(window);
+            window.addEventListener('resize', onWindowResize);
+        }
+        // ANIMATE
+        function animate() {
+            const delta = clock.getDelta();
+
+            if (modelReady) mixer.update(delta);
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        
+
+        // RESIZE HANDLER
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.render(scene, camera);
+            //  keyDisplayQueue.updatePosition()
+        }
+
+        function generateFloor() {
+            // TEXTURES
+            const textureLoader = new THREE.TextureLoader();
+            const placeholder = textureLoader.load("./textures/placeholder/placeholder.png");
+            const sandBaseColor = textureLoader.load("./textures/sand/Sand 002_COLOR.jpg");
+            const sandNormalMap = textureLoader.load("./textures/sand/Sand 002_NRM.jpg");
+            const sandHeightMap = textureLoader.load("./textures/sand/Sand 002_DISP.jpg");
+            const sandAmbientOcclusion = textureLoader.load("./textures/sand/Sand 002_OCC.jpg");
+
+            const WIDTH = 80
+            const LENGTH = 80
+
+            const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 512, 512);
+            const material = new THREE.MeshStandardMaterial(
+                {
+                    map: sandBaseColor, normalMap: sandNormalMap,
+                    displacementMap: sandHeightMap, displacementScale: 0.1,
+                    aoMap: sandAmbientOcclusion
+                })
+            wrapAndRepeatTexture(material.map)
+            wrapAndRepeatTexture(material.normalMap)
+            wrapAndRepeatTexture(material.displacementMap)
+            wrapAndRepeatTexture(material.aoMap)
+            // const material = new THREE.MeshPhongMaterial({ map: placeholder})
+
+            const floor = new THREE.Mesh(geometry, material)
+            floor.receiveShadow = true
+            floor.rotation.x = - Math.PI / 2
+            scene.add(floor)
+        }
+
+        function wrapAndRepeatTexture(map) {
+            map.wrapS = map.wrapT = THREE.RepeatWrapping
+            map.repeat.x = map.repeat.y = 10
+        }
+
+        function move(speed) {
+            var d = mesh.position.x - mesh2.position.x;
+            if (mesh.position.x > mesh2.position.x) {
+                mesh.position.x -= Math.min(speed, d);
+            }
+        }
+
+
+    </script>
+    
+
+</body>
+</html >
